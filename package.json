@@ -9,12 +9,11 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.109.0",
     "jszip": "^3.10.1",
-    "next": "^15.5.25",
+    "next": "15.5.25",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "@supabase/supabase-js": "^2.57.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

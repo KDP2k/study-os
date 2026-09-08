@@ -2,7 +2,7 @@ import "./globals.css";
 import { StudyProvider } from "@/components/StudyProvider";
 
 export const metadata = {
-  title: "Kris // Study OS",
+  title: "Study OS // Engineering Console",
   description: "A personal academic operating system for Lakehead Software Engineering."
 };
 

@@ -52,9 +52,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className={`app-shell season-${semester.season}`}>
       <aside className="sidebar">
-        <Link href="/app" className="brand-mark" aria-label="Study OS dashboard">
-          <span className="brand-glyph">K//</span>
-          <span><strong>STUDY OS</strong><small>SOFTWARE ENGINEERING</small></span>
+        <Link href="/app" className="brand-mark app-wordmark" aria-label="Study OS dashboard">
+          <span><strong>STUDY_OS</strong><small>// SOFTWARE_ENGINEERING</small></span>
         </Link>
         <nav className="side-nav">
           {nav.map((item) => {
@@ -82,7 +81,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="app-main">
         <header className="topbar">
-          <div className="topbar-mobile-brand">K// STUDY OS</div>
+          <div className="topbar-mobile-brand">STUDY_OS</div>
           <button className="command-trigger" onClick={() => setPaletteOpen(true)}>
             <Icon name="search" size={16}/><span>Search or command</span><kbd>⌘ K</kbd>
           </button>
