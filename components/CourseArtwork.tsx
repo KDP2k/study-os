@@ -1,9 +1,9 @@
 import { CourseArt } from "@/lib/types";
 
 const artFiles: Record<CourseArt, string> = {
-  compiler: "image_1.jpg",
-  networks: "image_2.jpg",
-  society: "image_3.jpg",
+  compiler: "image1.png",
+  networks: "image2.png",
+  society: "image3.png",
   economics: "image_4.jpg",
   testing: "image_5.jpg",
   performance: "image_6.jpg",
