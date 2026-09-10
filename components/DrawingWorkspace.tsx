@@ -229,18 +229,24 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
 
   if (!drawing || !page) return <div className="workspace-empty">Workspace unavailable.</div>;
 
+  const activeDrawing = drawing;
+  const activePage = page;
+
   const pointerPoint = (event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
-      x: Math.round(((event.clientX - rect.left) / rect.width) * page.width * 10) / 10,
-      y: Math.round(((event.clientY - rect.top) / rect.height) * page.height * 10) / 10,
+      x: Math.round(((event.clientX - rect.left) / rect.width) * activePage.width * 10) / 10,
+      y: Math.round(((event.clientY - rect.top) / rect.height) * activePage.height * 10) / 10,
       pressure: Math.round((event.pointerType === "mouse" ? .5 : Math.max(.05, event.pressure || .5)) * 100) / 100,
       tiltX: event.pointerType === "mouse" ? 0 : Math.round(event.tiltX || 0),
       tiltY: event.pointerType === "mouse" ? 0 : Math.round(event.tiltY || 0)
     };
   };
 
-  function pushHistory() { setHistory((h) => [...h.slice(-24), page.elements]); setFuture([]); }
+  function pushHistory() {
+    setHistory((h) => [...h.slice(-24), activePage.elements]);
+    setFuture([]);
+  }
 
   function eraserRadius() {
     return Math.max(10, width * 3.5);
@@ -250,9 +256,26 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
     if (tool === "text") {
       const point = pointerPoint(event);
       const text = window.prompt("Text to place on workspace:");
+  
       if (!text) return;
+  
       pushHistory();
-      updateDrawingPage(drawing.id, page.id, { elements: [...page.elements, { id: uid("txt"), type: "text", x: point.x, y: point.y, text, color, size: 24 }] });
+  
+      updateDrawingPage(activeDrawing.id, activePage.id, {
+        elements: [
+          ...activePage.elements,
+          {
+            id: uid("txt"),
+            type: "text",
+            x: point.x,
+            y: point.y,
+            text,
+            color,
+            size: 24,
+          },
+        ],
+      });
+  
       return;
     }
 
@@ -260,10 +283,10 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
     pushHistory();
 
     if (tool === "eraser") {
-      const next = eraseElementsAt(page.elements, pointerPoint(event), eraserRadius());
+      const next = eraseElementsAt(activePage.elements, pointerPoint(event), eraserRadius());
       eraserElementsRef.current = next;
       const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) drawPage(ctx, page.width, page.height, page.background, paper, next);
+      if (ctx) drawPage(ctx, activePage.width, activePage.height, activePage.background, paper, next);
       return;
     }
 
@@ -275,7 +298,7 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
       const next = eraseElementsAt(eraserElementsRef.current, pointerPoint(event), eraserRadius());
       eraserElementsRef.current = next;
       const ctx = canvasRef.current?.getContext("2d");
-      if (ctx) drawPage(ctx, page.width, page.height, page.background, paper, next);
+      if (ctx) drawPage(ctx, activePage.width, activePage.height, activePage.background, paper, next);
       return;
     }
 
@@ -287,14 +310,14 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
     stroke.points.push(nextPoint);
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext("2d");
-    if (ctx) drawPage(ctx, page.width, page.height, page.background, paper, [...page.elements, stroke]);
+    if (ctx) drawPage(ctx, activePage.width, activePage.height, activePage.background, paper, [...activePage.elements, stroke]);
   }
 
   function onPointerUp() {
     if (eraserElementsRef.current) {
       const elements = eraserElementsRef.current;
       eraserElementsRef.current = null;
-      updateDrawingPage(drawing.id, page.id, { elements });
+      updateDrawingPage(activeDrawing.id, activePage.id, { elements });
       return;
     }
 
@@ -302,55 +325,55 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
     if (!stroke) return;
     activeStrokeRef.current = null;
     const finalized = { ...stroke, points: simplify(stroke.points) };
-    updateDrawingPage(drawing.id, page.id, { elements: [...page.elements, finalized] });
+    updateDrawingPage(activeDrawing.id, activePage.id, { elements: [...activePage.elements, finalized] });
   }
 
   function undo() {
     const previous = history[history.length - 1];
     if (!previous) return;
-    setFuture((f) => [page.elements, ...f]);
+    setFuture((f) => [activePage.elements, ...f]);
     setHistory((h) => h.slice(0,-1));
-    updateDrawingPage(drawing.id, page.id, { elements: previous });
+    updateDrawingPage(activeDrawing.id, activePage.id, { elements: previous });
   }
 
   function redo() {
     const next = future[0];
     if (!next) return;
-    setHistory((h) => [...h, page.elements]);
+    setHistory((h) => [...h, activePage.elements]);
     setFuture((f) => f.slice(1));
-    updateDrawingPage(drawing.id, page.id, { elements: next });
+    updateDrawingPage(activeDrawing.id, activePage.id, { elements: next });
   }
 
   function changePaper(next: DrawingPaper) {
-    updateDrawingPage(drawing.id, page.id, { paper: next });
+    updateDrawingPage(activeDrawing.id, activePage.id, { paper: next });
     if (next === "light" && color.toUpperCase() === "#F3F3EF") setColor("#090D0F");
     if (next === "dark" && color.toUpperCase() === "#090D0F") setColor("#F3F3EF");
   }
 
   function deleteCurrentPage() {
-    if (drawing.pages.length === 1) {
+    if (activeDrawing.pages.length === 1) {
       if (!window.confirm("This is the last page in this workspace. Deleting it will delete the entire workspace set. Continue?")) return;
-      deleteDrawing(drawing.id);
+      deleteDrawing(activeDrawing.id);
       onClose?.();
       return;
     }
-    if (!window.confirm(`Delete page ${page.pageNumber}? This cannot be undone.`)) return;
-    const nextPage = drawing.pages.find((p) => p.id !== page.id);
-    deleteDrawingPage(drawing.id, page.id);
+    if (!window.confirm(`Delete page ${activePage.pageNumber}? This cannot be undone.`)) return;
+    const nextPage = activeDrawing.pages.find((p) => p.id !== activePage.id);
+    deleteDrawingPage(activeDrawing.id, activePage.id);
     setPageId(nextPage?.id || null);
     setHistory([]);
     setFuture([]);
   }
 
   function deleteWorkspace() {
-    if (!window.confirm(`Delete \"${drawing.title}\" and all ${drawing.pages.length} page${drawing.pages.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
-    deleteDrawing(drawing.id);
+    if (!window.confirm(`Delete \"${activeDrawing.title}\" and all ${activeDrawing.pages.length} page${activeDrawing.pages.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    deleteDrawing(activeDrawing.id);
     onClose?.();
   }
 
   const content = <div className={`drawing-workspace ${compact ? "compact" : ""}`}>
     <div className="drawing-head">
-      <div><span className="sys-label">WORKSPACE_{String(page.pageNumber).padStart(3,"0")}</span><input value={drawing.title} onChange={(e)=>updateDrawing(drawing.id,{title:e.target.value})}/></div>
+      <div><span className="sys-label">WORKSPACE_{String(activePage.pageNumber).padStart(3,"0")}</span><input value={activeDrawing.title} onChange={(e)=>updateDrawing(activeDrawing.id,{title:e.target.value})}/></div>
       <div className="drawing-save-state"><i/> CLOUD AUTOSAVE</div>
       {!compact && <button className="button micro workspace-delete" onClick={deleteWorkspace}>DELETE SET</button>}
       {onClose && <button className="button micro" onClick={onClose}>DONE</button>}
@@ -361,16 +384,16 @@ export function DrawingWorkspace({ drawingId, onClose, compact = false }: { draw
       </div>
       <div className="tool-group colors">{PEN_COLORS.map((item)=><button key={item} aria-label={item} className={color===item?"active":""} style={{background:item}} onClick={()=>setColor(item)}/>)}</div>
       <label className="stroke-control">WIDTH <input type="range" min="1" max="12" value={width} onChange={(e)=>setWidth(Number(e.target.value))}/><b>{width}px</b></label>
-      <div className="tool-group"><button onClick={undo} disabled={!history.length}>UNDO</button><button onClick={redo} disabled={!future.length}>REDO</button><button onClick={()=>{pushHistory();updateDrawingPage(drawing.id,page.id,{elements:[]})}}>CLEAR</button></div>
+      <div className="tool-group"><button onClick={undo} disabled={!history.length}>UNDO</button><button onClick={redo} disabled={!future.length}>REDO</button><button onClick={()=>{pushHistory();updateDrawingPage(activeDrawing.id,activePage.id,{elements:[]})}}>CLEAR</button></div>
       <div className="tool-group"><button onClick={()=>setZoom((z)=>Math.max(.5,z-.1))}>−</button><span>{Math.round(zoom*100)}%</span><button onClick={()=>setZoom((z)=>Math.min(1.6,z+.1))}>+</button></div>
       <select aria-label="Paper color" value={paper} onChange={(e)=>changePaper(e.target.value as DrawingPaper)}><option value="light">LIGHT PAPER</option><option value="dark">DARK PAPER</option></select>
-      <select aria-label="Paper pattern" value={page.background} onChange={(e)=>updateDrawingPage(drawing.id,page.id,{background:e.target.value as DrawingBackground})}><option value="blank">BLANK</option><option value="dot">DOT GRID</option><option value="graph">GRAPH</option><option value="lined">LINES</option></select>
+      <select aria-label="Paper pattern" value={activePage.background} onChange={(e)=>updateDrawingPage(activeDrawing.id,activePage.id,{background:e.target.value as DrawingBackground})}><option value="blank">BLANK</option><option value="dot">DOT GRID</option><option value="graph">GRAPH</option><option value="lined">LINES</option></select>
     </div>
-    <div className={`drawing-stage paper-${paper}`}><div className="drawing-scale" style={{width:`${zoom*100}%`}}><canvas style={{backgroundColor:paperFill(paper)}} ref={canvasRef} width={page.width} height={page.height} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}/></div></div>
+    <div className={`drawing-stage paper-${paper}`}><div className="drawing-scale" style={{width:`${zoom*100}%`}}><canvas style={{backgroundColor:paperFill(paper)}} ref={canvasRef} width={activePage.width} height={activePage.height} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}/></div></div>
     <div className="drawing-pages">
-      <span>PAGE {page.pageNumber}/{drawing.pages.length}</span>
-      <div>{drawing.pages.map((item)=><button key={item.id} className={page.id===item.id?"active":""} onClick={()=>{setPageId(item.id);setHistory([]);setFuture([])}}>{String(item.pageNumber).padStart(2,"0")}</button>)}</div>
-      <button onClick={()=>{const id=addDrawingPage(drawing.id);setPageId(id)}}>+ PAGE</button>
+      <span>PAGE {activePage.pageNumber}/{activeDrawing.pages.length}</span>
+      <div>{activeDrawing.pages.map((item)=><button key={item.id} className={activePage.id===item.id?"active":""} onClick={()=>{setPageId(item.id);setHistory([]);setFuture([])}}>{String(item.pageNumber).padStart(2,"0")}</button>)}</div>
+      <button onClick={()=>{const id=addDrawingPage(activeDrawing.id);setPageId(id)}}>+ PAGE</button>
       <button className="page-delete" onClick={deleteCurrentPage}>DELETE PAGE</button>
     </div>
   </div>;
