@@ -41,6 +41,53 @@ export interface Semester {
   schedule: ScheduleEvent[];
 }
 
+export type RichTextBlock =
+  | { id: string; type: "paragraph" | "heading" | "code" | "equation" | "callout"; text: string }
+  | { id: string; type: "drawing"; drawingId: string; caption?: string };
+
+export type RichContent = RichTextBlock[];
+
+export type DrawingBackground = "blank" | "dot" | "graph" | "lined";
+export type DrawingPaper = "light" | "dark";
+export type DrawingTool = "pen" | "eraser" | "text";
+export interface DrawingPoint { x: number; y: number; pressure: number; tiltX?: number; tiltY?: number; }
+export interface DrawingStroke {
+  id: string;
+  type: "stroke";
+  tool: "pen" | "eraser";
+  color: string;
+  width: number;
+  points: DrawingPoint[];
+}
+export interface DrawingText {
+  id: string;
+  type: "text";
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  size: number;
+}
+export type DrawingElement = DrawingStroke | DrawingText;
+export interface DrawingPage {
+  id: string;
+  pageNumber: number;
+  width: number;
+  height: number;
+  background: DrawingBackground;
+  paper?: DrawingPaper;
+  elements: DrawingElement[];
+}
+export interface DrawingDocument {
+  id: string;
+  courseId?: string;
+  noteId?: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  pages: DrawingPage[];
+}
+
 export interface Note {
   id: string;
   courseId: string;
@@ -51,6 +98,7 @@ export interface Note {
   tags: string[];
   reviewStage: number;
   nextReviewAt?: string;
+  drawingIds?: string[];
 }
 
 export type CardRating = "again" | "hard" | "good" | "easy";
@@ -60,6 +108,8 @@ export interface Flashcard {
   courseId: string;
   prompt: string;
   answer: string;
+  promptContent?: RichContent;
+  answerContent?: RichContent;
   type: "standard" | "cloze" | "code" | "conceptual" | "derivation" | "error";
   createdAt: string;
   dueAt: string;
@@ -99,6 +149,21 @@ export interface MistakeRecord {
   count: number;
 }
 
+export type PersonalEventCategory = "Personal" | "School" | "Study" | "Work" | "Appointment" | "Deadline" | "Other";
+export interface PersonalEvent {
+  id: string;
+  title: string;
+  description?: string;
+  location?: string;
+  category: PersonalEventCategory;
+  startsAt: string;
+  endsAt?: string;
+  allDay: boolean;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StudyState {
   selectedSemesterId: SemesterId;
   notes: Note[];
@@ -106,4 +171,6 @@ export interface StudyState {
   assignments: Assignment[];
   resources: ResourceLink[];
   mistakes: MistakeRecord[];
+  personalEvents: PersonalEvent[];
+  drawings: DrawingDocument[];
 }

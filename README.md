@@ -181,3 +181,7 @@ The app intentionally does not invent schedule information that was not visible 
 - The Supabase secret key is only referenced by the server health route.
 - Normal study CRUD uses the signed-in user's Supabase session and RLS rather than the service key.
 - Before a real production launch, rotate any secrets that have ever been pasted into chat, copied into logs, or shared outside your machine.
+
+## V2 upgrade
+
+This package includes the additive Study OS V2 workspace/general-calendar upgrade. If you already have the V1 Supabase database, run `supabase/migrations/0003_study_os_v2.sql` before launching this build. See `V2_MIGRATION_AND_DEPLOY.md` for the exact migration, test, GitHub and Vercel sequence.

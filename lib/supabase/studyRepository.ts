@@ -18,7 +18,9 @@ export function hasStudyData(state: StudyState) {
       state.flashcards.length ||
       state.assignments.length ||
       state.resources.length ||
-      state.mistakes.length
+      state.mistakes.length ||
+      state.personalEvents.length ||
+      state.drawings.length
   );
 }
 
@@ -150,7 +152,9 @@ export async function syncStudyState(supabase: SupabaseClient, userId: string, s
       lapses: card.lapses,
       last_rating: card.lastRating || null,
       created_at: card.createdAt,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      front_content: card.promptContent || null,
+      back_content: card.answerContent || null
     }));
 
   const assignments = state.assignments
@@ -194,11 +198,56 @@ export async function syncStudyState(supabase: SupabaseClient, userId: string, s
       created_at: item.createdAt
     }));
 
+  const personalEvents = state.personalEvents.map((item) => ({
+    user_id: userId,
+    client_id: item.id,
+    title: item.title,
+    description: item.description || null,
+    location: item.location || null,
+    category: item.category,
+    starts_at: item.startsAt,
+    ends_at: item.endsAt || null,
+    all_day: item.allDay,
+    notes: item.notes || null,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt
+  }));
+
+  const drawingDocuments = state.drawings.map((item) => ({
+    user_id: userId,
+    client_id: item.id,
+    course_id: item.courseId ? courseDbByAppId[item.courseId] || null : null,
+    note_client_id: item.noteId || null,
+    title: item.title,
+    created_at: item.createdAt,
+    updated_at: item.updatedAt
+  }));
+
   await reconcileTable(supabase, userId, "notes", notes, state.notes.map((x) => x.id));
   await reconcileTable(supabase, userId, "flashcards", cards, state.flashcards.map((x) => x.id));
   await reconcileTable(supabase, userId, "assessments", assignments, state.assignments.map((x) => x.id));
   await reconcileTable(supabase, userId, "resources", resources, state.resources.map((x) => x.id));
   await reconcileTable(supabase, userId, "mistakes", mistakes, state.mistakes.map((x) => x.id));
+  await reconcileTable(supabase, userId, "personal_events", personalEvents, state.personalEvents.map((x) => x.id));
+  await reconcileTable(supabase, userId, "drawing_documents", drawingDocuments, state.drawings.map((x) => x.id));
+
+  const { data: syncedDocs, error: syncedDocsError } = await supabase.from("drawing_documents")
+    .select("id,client_id").eq("user_id", userId);
+  assertNoError(syncedDocsError, "Could not map drawing documents");
+  const docDbByClient = Object.fromEntries((syncedDocs || []).map((row: any) => [row.client_id, row.id]));
+  const allPageRows = state.drawings.flatMap((drawing) => drawing.pages.map((page) => ({
+    user_id: userId,
+    document_id: docDbByClient[drawing.id],
+    client_id: page.id,
+    page_number: page.pageNumber,
+    width: page.width,
+    height: page.height,
+    background: page.background,
+    content: { elements: page.elements, paper: page.paper || "light" },
+    updated_at: new Date().toISOString()
+  }))).filter((row) => row.document_id);
+  const allPageIds = state.drawings.flatMap((drawing) => drawing.pages.map((page) => page.id));
+  await reconcileTable(supabase, userId, "drawing_pages", allPageRows, allPageIds);
 }
 
 export async function fetchStudyState(
@@ -208,12 +257,15 @@ export async function fetchStudyState(
 ): Promise<StudyState> {
   const { appCourseByDbId } = await ensureAcademicData(supabase, userId);
 
-  const [notesResult, cardsResult, assignmentsResult, resourcesResult, mistakesResult] = await Promise.all([
+  const [notesResult, cardsResult, assignmentsResult, resourcesResult, mistakesResult, eventsResult, drawingDocsResult, drawingPagesResult] = await Promise.all([
     supabase.from("notes").select("*").eq("user_id", userId).order("updated_at", { ascending: false }),
     supabase.from("flashcards").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
     supabase.from("assessments").select("*").eq("user_id", userId).order("due_at", { ascending: true }),
     supabase.from("resources").select("*").eq("user_id", userId).order("created_at", { ascending: false }),
-    supabase.from("mistakes").select("*").eq("user_id", userId).order("last_missed_at", { ascending: false })
+    supabase.from("mistakes").select("*").eq("user_id", userId).order("last_missed_at", { ascending: false }),
+    supabase.from("personal_events").select("*").eq("user_id", userId).order("starts_at", { ascending: true }),
+    supabase.from("drawing_documents").select("*").eq("user_id", userId).order("updated_at", { ascending: false }),
+    supabase.from("drawing_pages").select("*").eq("user_id", userId).order("page_number", { ascending: true })
   ]);
 
   assertNoError(notesResult.error, "Could not load notes");
@@ -221,6 +273,9 @@ export async function fetchStudyState(
   assertNoError(assignmentsResult.error, "Could not load assignments");
   assertNoError(resourcesResult.error, "Could not load resources");
   assertNoError(mistakesResult.error, "Could not load mistakes");
+  assertNoError(eventsResult.error, "Could not load personal events");
+  assertNoError(drawingDocsResult.error, "Could not load drawing documents");
+  assertNoError(drawingPagesResult.error, "Could not load drawing pages");
 
   return {
     selectedSemesterId,
@@ -236,7 +291,8 @@ export async function fetchStudyState(
         updatedAt: row.updated_at,
         tags: row.tags || [],
         reviewStage: row.review_stage || 0,
-        nextReviewAt: row.next_review_at || undefined
+        nextReviewAt: row.next_review_at || undefined,
+        drawingIds: (drawingDocsResult.data || []).filter((doc: any) => doc.note_client_id === (row.client_id || row.id)).map((doc: any) => doc.client_id || doc.id)
       }];
     }),
     flashcards: (cardsResult.data || []).flatMap((row: any) => {
@@ -247,6 +303,8 @@ export async function fetchStudyState(
         courseId,
         prompt: row.prompt,
         answer: row.answer,
+        promptContent: row.front_content || undefined,
+        answerContent: row.back_content || undefined,
         type: row.card_type,
         createdAt: row.created_at,
         dueAt: row.due_at,
@@ -294,6 +352,36 @@ export async function fetchStudyState(
         createdAt: row.last_missed_at || row.created_at,
         count: row.miss_count || 1
       }];
-    })
+    }),
+    personalEvents: (eventsResult.data || []).map((row: any) => ({
+      id: row.client_id || row.id,
+      title: row.title,
+      description: row.description || undefined,
+      location: row.location || undefined,
+      category: row.category,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at || undefined,
+      allDay: Boolean(row.all_day),
+      notes: row.notes || undefined,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    })),
+    drawings: (drawingDocsResult.data || []).map((row: any) => ({
+      id: row.client_id || row.id,
+      courseId: row.course_id ? appCourseByDbId[row.course_id] : undefined,
+      noteId: row.note_client_id || undefined,
+      title: row.title,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      pages: (drawingPagesResult.data || []).filter((page: any) => page.document_id === row.id).map((page: any) => ({
+        id: page.client_id || page.id,
+        pageNumber: page.page_number,
+        width: page.width,
+        height: page.height,
+        background: page.background || "dot",
+        paper: page.content?.paper === "dark" ? "dark" : "light",
+        elements: page.content?.elements || []
+      }))
+    }))
   };
 }

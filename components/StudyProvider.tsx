@@ -14,6 +14,9 @@ import {
   Note,
   ResourceLink,
   Semester,
+  PersonalEvent,
+  DrawingDocument,
+  DrawingPage,
   SemesterId,
   StudyState
 } from "@/lib/types";
@@ -50,6 +53,15 @@ interface StudyContextValue {
   deleteAssignment: (id: string) => void;
   addResource: (courseId: string, seed?: Partial<ResourceLink>) => string;
   deleteResource: (id: string) => void;
+  addPersonalEvent: (seed?: Partial<PersonalEvent>) => string;
+  updatePersonalEvent: (id: string, patch: Partial<PersonalEvent>) => void;
+  deletePersonalEvent: (id: string) => void;
+  addDrawing: (seed?: Partial<DrawingDocument>) => string;
+  updateDrawing: (id: string, patch: Partial<DrawingDocument>) => void;
+  deleteDrawing: (id: string) => void;
+  addDrawingPage: (drawingId: string) => string;
+  updateDrawingPage: (drawingId: string, pageId: string, patch: Partial<DrawingPage>) => void;
+  deleteDrawingPage: (drawingId: string, pageId: string) => void;
   courseContext: (courseId: string) => string;
   resetAllData: () => void;
 }
@@ -413,6 +425,87 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
     setState((current) => ({ ...current, resources: current.resources.filter((item) => item.id !== id) }));
   }, []);
 
+  const addPersonalEvent = useCallback((seed: Partial<PersonalEvent> = {}) => {
+    const id = uid("event");
+    const now = new Date().toISOString();
+    const start = seed.startsAt || now;
+    const event: PersonalEvent = {
+      id,
+      title: seed.title || "New event",
+      description: seed.description || "",
+      location: seed.location || "",
+      category: seed.category || "Personal",
+      startsAt: start,
+      endsAt: seed.endsAt,
+      allDay: seed.allDay ?? false,
+      notes: seed.notes || "",
+      createdAt: now,
+      updatedAt: now
+    };
+    setState((current) => ({ ...current, personalEvents: [...current.personalEvents, event] }));
+    return id;
+  }, []);
+
+  const updatePersonalEvent = useCallback((id: string, patch: Partial<PersonalEvent>) => {
+    setState((current) => ({ ...current, personalEvents: current.personalEvents.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item) }));
+  }, []);
+
+  const deletePersonalEvent = useCallback((id: string) => {
+    setState((current) => ({ ...current, personalEvents: current.personalEvents.filter((item) => item.id !== id) }));
+  }, []);
+
+  const addDrawing = useCallback((seed: Partial<DrawingDocument> = {}) => {
+    const id = uid("drawing");
+    const now = new Date().toISOString();
+    const pageId = uid("page");
+    const drawing: DrawingDocument = {
+      id,
+      courseId: seed.courseId,
+      noteId: seed.noteId,
+      title: seed.title || "Workspace",
+      createdAt: now,
+      updatedAt: now,
+      pages: seed.pages || [{ id: pageId, pageNumber: 1, width: 1400, height: 900, background: "dot", paper: "light", elements: [] }]
+    };
+    setState((current) => ({ ...current, drawings: [drawing, ...current.drawings] }));
+    return id;
+  }, []);
+
+  const updateDrawing = useCallback((id: string, patch: Partial<DrawingDocument>) => {
+    setState((current) => ({ ...current, drawings: current.drawings.map((item) => item.id === id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item) }));
+  }, []);
+
+  const deleteDrawing = useCallback((id: string) => {
+    setState((current) => ({
+      ...current,
+      drawings: current.drawings.filter((item) => item.id !== id),
+      notes: current.notes.map((note) => ({ ...note, drawingIds: (note.drawingIds || []).filter((drawingId) => drawingId !== id) })),
+      flashcards: current.flashcards.map((card) => ({
+        ...card,
+        promptContent: card.promptContent?.filter((block) => block.type !== "drawing" || block.drawingId !== id),
+        answerContent: card.answerContent?.filter((block) => block.type !== "drawing" || block.drawingId !== id)
+      }))
+    }));
+  }, []);
+
+  const addDrawingPage = useCallback((drawingId: string) => {
+    const pageId = uid("page");
+    setState((current) => ({ ...current, drawings: current.drawings.map((drawing) => drawing.id === drawingId ? { ...drawing, updatedAt: new Date().toISOString(), pages: [...drawing.pages, { id: pageId, pageNumber: drawing.pages.length + 1, width: 1400, height: 900, background: "dot", paper: "light", elements: [] }] } : drawing) }));
+    return pageId;
+  }, []);
+
+  const updateDrawingPage = useCallback((drawingId: string, pageId: string, patch: Partial<DrawingPage>) => {
+    setState((current) => ({ ...current, drawings: current.drawings.map((drawing) => drawing.id === drawingId ? { ...drawing, updatedAt: new Date().toISOString(), pages: drawing.pages.map((page) => page.id === pageId ? { ...page, ...patch } : page) } : drawing) }));
+  }, []);
+
+  const deleteDrawingPage = useCallback((drawingId: string, pageId: string) => {
+    setState((current) => ({ ...current, drawings: current.drawings.map((drawing) => {
+      if (drawing.id !== drawingId || drawing.pages.length <= 1) return drawing;
+      const pages = drawing.pages.filter((page) => page.id !== pageId).map((page, index) => ({ ...page, pageNumber: index + 1 }));
+      return { ...drawing, pages, updatedAt: new Date().toISOString() };
+    }) }));
+  }, []);
+
   const courseContext = useCallback(
     (courseId: string) => {
       const course = courseById[courseId];
@@ -459,6 +552,15 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
     deleteAssignment,
     addResource,
     deleteResource,
+    addPersonalEvent,
+    updatePersonalEvent,
+    deletePersonalEvent,
+    addDrawing,
+    updateDrawing,
+    deleteDrawing,
+    addDrawingPage,
+    updateDrawingPage,
+    deleteDrawingPage,
     courseContext,
     resetAllData
   }), [
@@ -488,6 +590,15 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
     deleteAssignment,
     addResource,
     deleteResource,
+    addPersonalEvent,
+    updatePersonalEvent,
+    deletePersonalEvent,
+    addDrawing,
+    updateDrawing,
+    deleteDrawing,
+    addDrawingPage,
+    updateDrawingPage,
+    deleteDrawingPage,
     courseContext,
     resetAllData
   ]);

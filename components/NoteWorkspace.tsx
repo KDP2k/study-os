@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./Icons";
+import { DrawingPreview, DrawingWorkspace } from "./DrawingWorkspace";
 import { useStudy } from "./StudyProvider";
 
 const slashCommands = [
@@ -16,13 +17,14 @@ const slashCommands = [
 ] as const;
 
 export function NoteWorkspace({ courseId }: { courseId: string }) {
-  const { state, addNote, updateNote, deleteNote, addFlashcard } = useStudy();
+  const { state, addNote, updateNote, deleteNote, addFlashcard, addDrawing, deleteDrawing } = useStudy();
   const notes = useMemo(() => state.notes.filter((note) => note.courseId === courseId).sort((a,b) => +new Date(b.updatedAt)-+new Date(a.updatedAt)), [state.notes, courseId]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [slash, setSlash] = useState<{ query: string; start: number; end: number } | null>(null);
   const [cardModal, setCardModal] = useState(false);
   const [cardQ, setCardQ] = useState("");
   const [cardA, setCardA] = useState("");
+  const [openDrawing, setOpenDrawing] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -113,10 +115,15 @@ export function NoteWorkspace({ courseId }: { courseId: string }) {
             />
             {slash && filteredCommands.length > 0 && <div className="slash-menu">{filteredCommands.map((command)=><button key={command.key} onMouseDown={(e)=>{e.preventDefault();selectSlashCommand(command)}}><span><strong>/{command.key}</strong><small>{command.hint}</small></span><Icon name="arrow" size={14}/></button>)}</div>}
           </div>
+          <div className="note-workspaces">
+            <div className="note-workspace-head"><div><span className="eyebrow">WORKSPACE</span><strong>Handwritten / diagram pages</strong></div><button className="button micro" onClick={()=>{const id=addDrawing({courseId,noteId:selected.id,title:`${selected.title} — Workspace`});updateNote(selected.id,{drawingIds:[...(selected.drawingIds||[]),id]});setOpenDrawing(id)}}>+ DRAW SET</button></div>
+            <div className="note-workspace-grid">{(selected.drawingIds||[]).map((id)=>{const drawing=state.drawings.find((d)=>d.id===id);return drawing?<div className="note-workspace-card" key={id}><button className="note-workspace-open" onClick={()=>setOpenDrawing(id)}><DrawingPreview drawing={drawing}/><span>{drawing.title}</span><small>{drawing.pages.length} page{drawing.pages.length===1?"":"s"}</small></button><button className="note-workspace-delete" aria-label={`Delete ${drawing.title}`} title="Delete workspace set" onClick={()=>{if(window.confirm(`Delete "${drawing.title}" and all ${drawing.pages.length} page${drawing.pages.length===1?"":"s"}? This cannot be undone.`)){deleteDrawing(id);if(openDrawing===id)setOpenDrawing(null)}}}><Icon name="trash" size={14}/></button></div>:null})}</div>
+          </div>
           <div className="editor-status"><span>Markdown-first · AI-friendly</span><span>{selected.content.length.toLocaleString()} characters</span></div>
         </> : <div className="empty-state editor-empty"><Icon name="file" size={30}/><h3>Create your first lecture note.</h3><p>The editor is Markdown-first, autosaves to Supabase with a local browser cache, and can generate real cue cards from the slash menu.</p><button className="button primary" onClick={createNote}>Create note</button></div>}
       </section>
 
+      {openDrawing && <DrawingWorkspace drawingId={openDrawing} onClose={()=>setOpenDrawing(null)}/>}
       {cardModal && <div className="modal-backdrop" onMouseDown={()=>setCardModal(false)}><div className="small-modal" onMouseDown={(e)=>e.stopPropagation()}><div className="modal-title"><div><span className="eyebrow">CUE CARD</span><h3>Create from note</h3></div><button className="icon-button small" onClick={()=>setCardModal(false)}><Icon name="close" size={16}/></button></div><label>Question<textarea value={cardQ} onChange={(e)=>setCardQ(e.target.value)} placeholder="What should future-you recall?"/></label><label>Answer<textarea value={cardA} onChange={(e)=>setCardA(e.target.value)} placeholder="Keep it atomic and precise."/></label><div className="modal-actions"><button className="button secondary" onClick={()=>setCardModal(false)}>Cancel</button><button className="button primary" onClick={saveCard}>Create card</button></div></div></div>}
     </div>
   );
