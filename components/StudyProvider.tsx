@@ -465,7 +465,7 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
       title: seed.title || "Workspace",
       createdAt: now,
       updatedAt: now,
-      pages: seed.pages || [{ id: pageId, pageNumber: 1, width: 1400, height: 900, background: "dot", paper: "light", elements: [] }]
+      pages: seed.pages || [{ id: pageId, pageNumber: 1, width: 1400, height: 1980, background: "dot", paper: "light", elements: [] }]
     };
     setState((current) => ({ ...current, drawings: [drawing, ...current.drawings] }));
     return id;
@@ -490,7 +490,7 @@ export function StudyProvider({ children }: { children: React.ReactNode }) {
 
   const addDrawingPage = useCallback((drawingId: string) => {
     const pageId = uid("page");
-    setState((current) => ({ ...current, drawings: current.drawings.map((drawing) => drawing.id === drawingId ? { ...drawing, updatedAt: new Date().toISOString(), pages: [...drawing.pages, { id: pageId, pageNumber: drawing.pages.length + 1, width: 1400, height: 900, background: "dot", paper: "light", elements: [] }] } : drawing) }));
+    setState((current) => ({ ...current, drawings: current.drawings.map((drawing) => drawing.id === drawingId ? { ...drawing, updatedAt: new Date().toISOString(), pages: [...drawing.pages, { id: pageId, pageNumber: drawing.pages.length + 1, width: 1400, height: 1980, background: "dot", paper: "light", elements: [] }] } : drawing) }));
     return pageId;
   }, []);
 

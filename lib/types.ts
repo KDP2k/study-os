@@ -49,7 +49,7 @@ export type RichContent = RichTextBlock[];
 
 export type DrawingBackground = "blank" | "dot" | "graph" | "lined";
 export type DrawingPaper = "light" | "dark";
-export type DrawingTool = "pen" | "eraser" | "text";
+export type DrawingTool = "pen" | "eraser" | "text" | "select";
 export interface DrawingPoint { x: number; y: number; pressure: number; tiltX?: number; tiltY?: number; }
 export interface DrawingStroke {
   id: string;
